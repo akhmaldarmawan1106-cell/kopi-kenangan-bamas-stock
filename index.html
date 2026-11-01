@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kopi Kenangan Bau Massepe - Manajemen Terpadu</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK (Modular CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+        // Konfigurasi Firebase Anda
+        const firebaseConfig = {
+            apiKey: "AIzaSyCMkCDVqSmZbdd0KxXIlVKSdqTtbyDtncw",
+            authDomain: "kopi-kenangan-bamas-stock.firebaseapp.com",
+            projectId: "kopi-kenangan-bamas-stock",
+            storageBucket: "kopi-kenangan-bamas-stock.firebasestorage.app",
+            messagingSenderId: "157140469593",
+            appId: "1:157140469593:web:f50b71642fd3b15d50ee48"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.addDoc = addDoc;
+        window.updateDoc = updateDoc;
+        window.onSnapshot = onSnapshot;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const statusEl = document.getElementById('connection-status');
+            if(statusEl) {
+                statusEl.innerText = "Terhubung ke Cloud";
+                statusEl.className = "text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-sm";
+            }
+            loadData();
+            loadEmployees();
+        });
+    </script>
+</head>
+<body class="bg-stone-50 text-stone-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="bg-white border-b border-stone-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-900 flex items-center justify-center text-white font-bold text-lg shadow-md">KK</div>
+                <div>
+                    <h1 class="font-bold text-stone-900 leading-tight">Kopi Kenangan Bau Massepe</h1>
+                    <p class="text-xs text-stone-500">Sistem Manajemen Stok Bar & Backroom (FEFO)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="connection-status" class="text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 flex items-center gap-1.5 shadow-sm">
+                    Menghubungkan...
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigasi Menu Tab -->
+    <nav class="bg-white border-b border-stone-200 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4 overflow-x-auto">
+            <button type="button" onclick="switchTab('inventaris')" id="tab-btn-inventaris" class="py-3 px-4 font-semibold text-sm border-b-2 border-amber-800 text-amber-900 whitespace-nowrap cursor-pointer">📦 Inventaris Bar & Gudang</button>
+            <button type="button" onclick="switchTab('penjualan')" id="tab-btn-penjualan" class="py-3 px-4 font-medium text-sm text-stone-500 hover:text-stone-800 whitespace-nowrap cursor-pointer">📊 Laporan Transaksi</button>
+            <button type="button" onclick="switchTab('estimasi')" id="tab-btn-estimasi" class="py-3 px-4 font-medium text-sm text-stone-500 hover:text-stone-800 whitespace-nowrap cursor-pointer">🛒 Estimasi Pengorderan</button>
+            <button type="button" onclick="switchTab('opname')" id="tab-btn-opname" class="py-3 px-4 font-medium text-sm text-stone-500 hover:text-stone-800 whitespace-nowrap cursor-pointer">📋 Stock Opname</button>
+            <button type="button" onclick="switchTab('karyawan')" id="tab-btn-karyawan" class="py-3 px-4 font-medium text-sm text-stone-500 hover:text-stone-800 whitespace-nowrap cursor-pointer">👥 Daftar Karyawan</button>
+        </div>
+    </nav>
+
+    <!-- Konten Utama -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+        <!-- TAB 1: INVENTARIS & FEFO -->
+        <section id="content-inventaris" class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Total Jenis Barang</p>
+                        <h3 id="stat-total-item" class="text-2xl font-bold text-stone-900 mt-1">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center text-xl font-bold">📦</div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Stok Kritis / Menipis</p>
+                        <h3 id="stat-low-stock" class="text-2xl font-bold text-rose-600 mt-1">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl font-bold">⚠️</div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Mendekati Expired (FEFO)</p>
+                        <h3 id="stat-near-exp" class="text-2xl font-bold text-amber-600 mt-1">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">⏳</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+                <div class="p-5 border-b border-stone-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="font-bold text-lg text-stone-900">Daftar Stok (Bar vs Backroom) & Multi-Batch FEFO</h2>
+                        <p class="text-xs text-stone-500">Pemantauan terpisah antara outlet depan (Bar) dan gudang penyimpanan (Backroom).</p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div class="relative min-w-[240px]">
+                            <input type="text" id="search-input" oninput="handleSearch()" placeholder="🔍 Cari nama barang..." class="w-full pl-9 pr-3.5 py-2 border border-stone-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none bg-stone-50 focus:bg-white transition">
+                            <span class="absolute left-3 top-2.5 text-stone-400 text-xs">🔍</span>
+                        </div>
+                        <button type="button" onclick="openModal('modal-tambah-item')" class="bg-amber-800 hover:bg-amber-900 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition shadow-xs flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap">
+                            <span>+ Tambah Jenis Barang</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FILTER KATEGORI -->
+                <div class="px-5 py-3 bg-stone-50 border-b border-stone-200 flex items-center gap-2 overflow-x-auto" id="category-filter-container">
+                    <span class="text-xs font-semibold text-stone-500 mr-2">Filter Kategori:</span>
+                    <button type="button" onclick="filterCategory('Semua')" id="filter-btn-Semua" class="px-3 py-1 rounded-lg text-xs font-medium bg-amber-800 text-white shadow-xs cursor-pointer">Semua</button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider border-b border-stone-200">
+                                <th class="py-3 px-5 font-semibold">Nama Barang</th>
+                                <th class="py-3 px-5 font-semibold">Kategori</th>
+                                <th class="py-3 px-5 font-semibold">Stok Bar (Depan)</th>
+                                <th class="py-3 px-5 font-semibold">Stok Backroom (Gudang)</th>
+                                <th class="py-3 px-5 font-semibold">Detail Batch & Urutan FEFO</th>
+                                <th class="py-3 px-5 font-semibold">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body" class="divide-y divide-stone-200 text-sm text-stone-700">
+                            <tr><td colspan="6" class="py-8 text-center text-stone-400">Memuat data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: LAPORAN PENJUALAN -->
+        <section id="content-penjualan" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl border border-stone-200 shadow-xs p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="font-bold text-lg text-stone-900">Rekapitulasi Transaksi Masuk / Keluar (Bar & Backroom)</h2>
+                        <p class="text-xs text-stone-500">Mencatat aktivitas keluar masuk berurutan sesuai tanggal dan waktu secara presisi.</p>
+                    </div>
+                    <button type="button" onclick="loadTrxHistory()" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium text-xs rounded-xl transition cursor-pointer">🔄 Muat Ulang Data</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider border-b border-stone-200">
+                                <th class="py-3 px-4 font-semibold">Waktu / Tanggal</th>
+                                <th class="py-3 px-4 font-semibold">Nama Barang</th>
+                                <th class="py-3 px-4 font-semibold">Tipe & Lokasi</th>
+                                <th class="py-3 px-4 font-semibold">Jumlah</th>
+                                <th class="py-3 px-4 font-semibold">Staf Bertugas</th>
+                                <th class="py-3 px-4 font-semibold">Catatan / Batch</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trx-history-body" class="divide-y divide-stone-200 text-sm text-stone-700">
+                            <tr><td colspan="6" class="py-8 text-center text-stone-400">Memuat riwayat transaksi...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: ESTIMASI PENGORDERAN -->
+        <section id="content-estimasi" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl border border-stone-200 shadow-xs p-6">
+                <div class="mb-6">
+                    <h2 class="font-bold text-lg text-stone-900">Estimasi Kebutuhan Pengorderan Barang (Restock)</h2>
+                    <p class="text-xs text-stone-500">Berdasarkan Total Stok Gabungan (Bar + Backroom). Batas Menipis: Gram/Mili/Pcs (< 3000) | Pack/Stick (< 5).</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider border-b border-stone-200">
+                                <th class="py-3 px-6 font-semibold">Nama Barang</th>
+                                <th class="py-3 px-6 font-semibold">Kategori</th>
+                                <th class="py-3 px-6 font-semibold">Total Stok Saat Ini</th>
+                                <th class="py-3 px-6 font-semibold">Saran Jumlah Order Rekomendasi</th>
+                                <th class="py-3 px-6 font-semibold">Status Urgensi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="estimation-table-body" class="divide-y divide-stone-200 text-sm text-stone-700">
+                            <tr><td colspan="5" class="py-8 text-center text-stone-400">Memuat analisis estimasi...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: STOCK OPNAME -->
+        <section id="content-opname" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl border border-stone-200 shadow-xs p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="font-bold text-lg text-stone-900">Lembar Kerja Stock Opname (Bar & Backroom)</h2>
+                        <p class="text-xs text-stone-500">Cocokkan stok fisik di bar dan gudang belakang dengan catatan sistem.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="opname-period" class="px-3 py-2 border border-stone-300 rounded-xl text-xs font-medium focus:outline-none">
+                            <option value="Harian">Opname Harian</option>
+                            <option value="Bulanan">Opname Bulanan</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider border-b border-stone-200">
+                                <th class="py-3 px-4 font-semibold">Nama Barang</th>
+                                <th class="py-3 px-4 font-semibold">Stok Sistem (Bar / Backroom)</th>
+                                <th class="py-3 px-4 font-semibold">Fisik Bar</th>
+                                <th class="py-3 px-4 font-semibold">Fisik Backroom</th>
+                                <th class="py-3 px-4 font-semibold">Aksi Simpan Opname</th>
+                            </tr>
+                        </thead>
+                        <tbody id="opname-table-body" class="divide-y divide-stone-200 text-sm text-stone-700">
+                            <tr><td colspan="5" class="py-8 text-center text-stone-400">Memuat lembar opname...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 5: DAFTAR KARYAWAN -->
+        <section id="content-karyawan" class="space-y-6 hidden">
+            <div class="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+                <div class="p-5 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 class="font-bold text-lg text-stone-900">Daftar Staf & Karyawan Cabang</h2>
+                        <p class="text-xs text-stone-500">Kelola informasi petugas yang bertugas di Kopi Kenangan Bau Massepe.</p>
+                    </div>
+                    <button type="button" onclick="openModal('modal-tambah-karyawan')" class="bg-amber-800 hover:bg-amber-900 text-white font-medium text-sm px-4 py-2.5 rounded-xl transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
+                        <span>+ Tambah Karyawan</span>
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider border-b border-stone-200">
+                                <th class="py-3 px-6 font-semibold">Employee ID</th>
+                                <th class="py-3 px-6 font-semibold">Nama Lengkap</th>
+                                <th class="py-3 px-6 font-semibold">Peran / Jabatan</th>
+                                <th class="py-3 px-6 font-semibold">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employee-table-body" class="divide-y divide-stone-200 text-sm text-stone-700">
+                            <tr><td colspan="4" class="py-8 text-center text-stone-400">Memuat data karyawan...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL: TAMBAH BARANG -->
+    <div id="modal-tambah-item" class="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-stone-100 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-stone-900 mb-4">Tambah Jenis Barang Baru & Penempatan Stok</h3>
+            <form id="form-tambah-item" onsubmit="handleTambahItem(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Nama Barang</label>
+                    <input type="text" id="add-name" required placeholder="Contoh: Bubuk Kopi Kenangan" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Kategori</label>
+                    <input type="text" id="add-category" required placeholder="Contoh: Bahan Baku" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Satuan</label>
+                    <select id="add-unit" required class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
+                        <option value="Pcs">Pcs</option>
+                        <option value="Mili">Mili (ml)</option>
+                        <option value="Gram">Gram (gr)</option>
+                        <option value="Pack">Pack / Stick</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Simpan Stok Awal Di Lokasi:</label>
+                    <select id="add-location" required class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
+                        <option value="Backroom">Backroom (Gudang Belakang)</option>
+                        <option value="Bar">Bar (Outlet Depan)</option>
+                    </select>
+                </div>
+
+                <div class="border-t border-stone-200 pt-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-semibold text-stone-700">Daftar Batch Stok & Tanggal Kedaluwarsa</label>
+                        <button type="button" onclick="addBatchRow('batch-container')" class="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium cursor-pointer">+ Tambah Batch Lain</button>
+                    </div>
+                    <div id="batch-container" class="space-y-2">
+                        <div class="batch-row grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                            <div class="sm:col-span-5">
+                                <label class="block text-[10px] text-stone-500">Jumlah Stok</label>
+                                <input type="number" class="batch-qty w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white" required min="1" value="1">
+                            </div>
+                            <div class="sm:col-span-6">
+                                <label class="block text-[10px] text-stone-500">Expired Date (Opsional)</label>
+                                <input type="date" class="batch-exp w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white">
+                            </div>
+                            <div class="sm:col-span-1 flex items-end justify-center"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeModal('modal-tambah-item')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-sm rounded-xl transition cursor-pointer">Batal</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold text-sm rounded-xl transition cursor-pointer">Simpan Barang</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: TRANSAKSI STOK MASUK / KELUAR -->
+    <div id="modal-transaksi" class="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-stone-100 max-h-[90vh] overflow-y-auto">
+            <h3 id="trx-modal-title" class="text-lg font-bold text-stone-900 mb-1">Atur Stok Barang</h3>
+            <p id="trx-item-name" class="text-xs text-stone-500 mb-4">Nama Barang</p>
+            <form id="form-transaksi" onsubmit="handleSimpanTransaksi(event)" class="space-y-4">
+                <input type="hidden" id="trx-id">
+                <input type="hidden" id="trx-type">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Pilih Lokasi Terkait</label>
+                    <select id="trx-location" required class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
+                        <option value="Backroom">Backroom (Gudang Belakang)</option>
+                        <option value="Bar">Bar (Outlet Depan)</option>
+                    </select>
+                </div>
+
+                <div id="section-trx-masuk" class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-semibold text-stone-700">Tambah Batch Pemasokan Baru</label>
+                        <button type="button" onclick="addBatchRow('trx-batch-container')" class="px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium cursor-pointer">+ Baris Batch</button>
+                    </div>
+                    <div id="trx-batch-container" class="space-y-2">
+                        <div class="batch-row grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                            <div class="sm:col-span-5">
+                                <label class="block text-[10px] text-stone-500">Jumlah Masuk</label>
+                                <input type="number" class="batch-qty w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white" min="1" value="1">
+                            </div>
+                            <div class="sm:col-span-6">
+                                <label class="block text-[10px] text-stone-500">Expired Date</label>
+                                <input type="date" class="batch-exp w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white">
+                            </div>
+                            <div class="sm:col-span-1 flex items-end justify-center"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="section-trx-keluar" class="space-y-3 hidden">
+                    <div>
+                        <label class="block text-xs font-semibold text-stone-600 mb-1">Jumlah Keluar (<span class="trx-unit-label"></span>)</label>
+                        <input type="number" id="trx-qty-keluar" min="1" value="1" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        <p class="text-[11px] text-amber-700 mt-1">💡 Pengeluaran otomatis memotong stok dari batch dengan tanggal expired terdekat (FEFO).</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Pilih Staf / Petugas</label>
+                    <select id="trx-staff" required class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
+                        <option value="">-- Pilih Nama Karyawan --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Catatan / Keterangan</label>
+                    <input type="text" id="trx-note" placeholder="Contoh: Pengiriman supplier / Terjual" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeModal('modal-transaksi')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-sm rounded-xl transition cursor-pointer">Batal</button>
+                    <button type="submit" id="trx-submit-btn" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-sm rounded-xl transition cursor-pointer">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: TAMBAH KARYAWAN -->
+    <div id="modal-tambah-karyawan" class="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-100">
+            <h3 class="text-lg font-bold text-stone-900 mb-4">Tambah Karyawan Baru</h3>
+            <form id="form-tambah-karyawan" onsubmit="handleTambahKaryawan(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Employee ID (ID Karyawan)</label>
+                    <input type="text" id="emp-id" required placeholder="Contoh: EMP001 atau NIK" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none uppercase">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Nama Lengkap</label>
+                    <input type="text" id="emp-name" required placeholder="Nama Staf" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-stone-600 mb-1">Peran / Jabatan</label>
+                    <input type="text" id="emp-role" required placeholder="Contoh: Barista / Store Supervisor" class="w-full px-3.5 py-2.5 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeModal('modal-tambah-karyawan')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-sm rounded-xl transition cursor-pointer">Batal</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold text-sm rounded-xl transition cursor-pointer">Simpan Karyawan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT UTAMA APLIKASI -->
+    <script>
+        let inventoryData = [];
+        let employeeData = [];
+        let activeCategory = 'Semua';
+        let searchQuery = '';
+
+        function switchTab(tabName) {
+            const tabs = ['inventaris', 'penjualan', 'estimasi', 'opname', 'karyawan'];
+            tabs.forEach(t => {
+                const contentEl = document.getElementById(`content-${t}`);
+                const btnEl = document.getElementById(`tab-btn-${t}`);
+                if (contentEl) contentEl.classList.add('hidden');
+                if (btnEl) btnEl.className = "py-3 px-4 font-medium text-sm text-stone-500 hover:text-stone-800 whitespace-nowrap cursor-pointer";
+            });
+            const activeContent = document.getElementById(`content-${tabName}`);
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+            if (activeContent) activeContent.classList.remove('hidden');
+            if (activeBtn) activeBtn.className = "py-3 px-4 font-semibold text-sm border-b-2 border-amber-800 text-amber-900 whitespace-nowrap cursor-pointer";
+
+            if (tabName === 'penjualan') loadTrxHistory();
+            if (tabName === 'estimasi') renderEstimation();
+            if (tabName === 'opname') renderOpname();
+            if (tabName === 'karyawan') loadEmployees();
+        }
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function addBatchRow(containerId) {
+            const container = document.getElementById(containerId);
+            const row = document.createElement('div');
+            row.className = "batch-row grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-stone-50 p-2.5 rounded-xl border border-stone-200";
+            row.innerHTML = `
+                <div class="sm:col-span-5">
+                    <label class="block text-[10px] text-stone-500">Jumlah Stok</label>
+                    <input type="number" class="batch-qty w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white" required min="1" value="1">
+                </div>
+                <div class="sm:col-span-6">
+                    <label class="block text-[10px] text-stone-500">Expired Date (Opsional)</label>
+                    <input type="date" class="batch-exp w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white">
+                </div>
+                <div class="sm:col-span-1 flex items-end justify-center">
+                    <button type="button" onclick="this.closest('.batch-row').remove()" class="px-2 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs hover:bg-rose-100 cursor-pointer">✕</button>
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        function getLowStockLimit(unit) {
+            const u = (unit || '').toLowerCase();
+            if (u.includes('pack') || u.includes('stick') || u.includes('pac')) {
+                return 5; 
+            }
+            return 3000;
+        }
+
+        function getRecommendedOrder(unit, currentStock) {
+            const u = (unit || '').toLowerCase();
+            let target = 10000;
+            if (u.includes('pack') || u.includes('stick') || u.includes('pac')) {
+                target = 20;
+            }
+            let order = target - currentStock;
+            return order > 0 ? order : Math.round(target / 2);
+        }
+
+        function loadData() {
+            if (!window.db) return;
+            window.onSnapshot(window.collection(window.db, "inventaris"), (snapshot) => {
+                inventoryData = [];
+                snapshot.forEach((doc) => {
+                    inventoryData.push({ id: doc.id, ...doc.data() });
+                });
+                renderCategoryFilterButtons();
+                renderInventoryTable();
+            });
+        }
+
+        function handleSearch() {
+            const searchInput = document.getElementById('search-input');
+            searchQuery = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            renderInventoryTable();
+        }
+
+        function renderCategoryFilterButtons() {
+            const container = document.getElementById('category-filter-container');
+            if(!container) return;
+
+            const categories = ['Semua', ...new Set(inventoryData.map(i => i.category || 'Lainnya'))];
+            
+            container.innerHTML = `<span class="text-xs font-semibold text-stone-500 mr-2">Filter Kategori:</span>`;
+            categories.forEach(cat => {
+                const isActive = cat === activeCategory;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = `filter-btn-${cat}`;
+                btn.onclick = () => filterCategory(cat);
+                btn.className = isActive 
+                    ? "px-3 py-1 rounded-lg text-xs font-medium bg-amber-800 text-white shadow-xs cursor-pointer"
+                    : "px-3 py-1 rounded-lg text-xs font-medium bg-stone-200 text-stone-700 hover:bg-stone-300 transition cursor-pointer";
+                btn.innerText = cat;
+                container.appendChild(btn);
+            });
+        }
+
+        function filterCategory(categoryName) {
+            activeCategory = categoryName;
+            renderCategoryFilterButtons();
+            renderInventoryTable();
+        }
+
+        async function loadEmployeeDropdown() {
+            if (!window.db) return;
+            try {
+                const snapshot = await window.getDocs(window.collection(window.db, "karyawan"));
+                employeeData = [];
+                const selectEl = document.getElementById('trx-staff');
+                if(!selectEl) return;
+                selectEl.innerHTML = `<option value="">-- Pilih Nama Karyawan --</option>`;
+                snapshot.forEach(docSnap => {
+                    const emp = docSnap.data();
+                    employeeData.push(emp);
+                    const opt = document.createElement('option');
+                    opt.value = `${emp.name} (${emp.employeeId})`;
+                    opt.textContent = `${emp.name} - ID: ${emp.employeeId} (${emp.role})`;
+                    selectEl.appendChild(opt);
+                });
+            } catch (err) {
+                console.error("Gagal memuat staf", err);
+            }
+        }
+
+        function sortBatchesFEFO(batches) {
+            return batches.sort((a, b) => {
+                if (!a.exp || a.exp === 'Tanpa Expired') return 1;
+                if (!b.exp || b.exp === 'Tanpa Expired') return -1;
+                return new Date(a.exp) - new Date(b.exp);
+            });
+        }
+
+        function renderInventoryTable() {
+            const tbody = document.getElementById('inventory-table-body');
+            const totalItemEl = document.getElementById('stat-total-item');
+            const lowStockEl = document.getElementById('stat-low-stock');
+            const nearExpEl = document.getElementById('stat-near-exp');
+
+            if (!tbody) return;
+            totalItemEl.innerText = inventoryData.length;
+            let lowStockCount = 0;
+            let nearExpCount = 0;
+            const today = new Date();
+
+            const filteredData = inventoryData.filter(item => {
+                const matchCategory = activeCategory === 'Semua' || (item.category || 'Lainnya') === activeCategory;
+                const matchSearch = (item.name || '').toLowerCase().includes(searchQuery);
+                return matchCategory && matchSearch;
+            });
+
+            if (inventoryData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-stone-400">Belum ada data barang. Silakan tambahkan barang baru.</td></tr>`;
+                lowStockEl.innerText = "0";
+                nearExpEl.innerText = "0";
+                return;
+            }
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-stone-400">Barang tidak ditemukan sesuai kata kunci/kategori terpilih.</td></tr>`;
+            } else {
+                tbody.innerHTML = "";
+            }
+
+            inventoryData.forEach(item => {
+                let stockBar = item.stockBar !== undefined ? item.stockBar : 0;
+                let stockBackroom = item.stockBackroom !== undefined ? item.stockBackroom : (item.stock || 0);
+                let totalStock = stockBar + stockBackroom;
+
+                let batches = item.batches || [];
+                let limit = getLowStockLimit(item.unit);
+                
+                if (batches.length === 0 && totalStock > 0) {
+                    batches = [{ qty: totalStock, exp: item.expDate || 'Tanpa Expired' }];
+                }
+
+                batches = sortBatchesFEFO(batches);
+
+                if (totalStock <= limit) lowStockCount++;
+
+                if (filteredData.some(f => f.id === item.id)) {
+                    let batchHtml = `<div class="space-y-1">`;
+                    batches.forEach((b, idx) => {
+                        let expText = b.exp ? b.exp : 'Tanpa Expired';
+                        let badgeStyle = "text-stone-600 bg-stone-100";
+                        let fefoLabel = idx === 0 ? '<span class="text-[10px] bg-amber-800 text-white px-1.5 py-0.5 rounded font-bold mr-1">FEFO</span>' : '';
+                        
+                        if (b.exp && b.exp !== 'Tanpa Expired') {
+                            const expDateObj = new Date(b.exp);
+                            const diffDays = Math.ceil((expDateObj - today) / (1000 * 60 * 60 * 24));
+                            if (diffDays <= 7 && diffDays >= 0) {
+                                nearExpCount++;
+                                badgeStyle = "bg-amber-100 text-amber-800 font-medium";
+                                expText += " (Segera Exp)";
+                            } else if (diffDays < 0) {
+                                badgeStyle = "bg-rose-100 text-rose-800 font-medium";
+                                expText += " (Expired!)";
+                            }
+                        }
+                        batchHtml += `<div>${fefoLabel}<span class="text-xs px-2 py-0.5 rounded ${badgeStyle} inline-block">📦 ${b.qty} ${item.unit || 'Pcs'} — ⏳ ${expText}</span></div>`;
+                    });
+                    batchHtml += `</div>`;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="py-3 px-5 font-medium text-stone-900">${item.name || '-'}</td>
+                        <td class="py-3 px-5 text-stone-500">${item.category || '-'}</td>
+                        <td class="py-3 px-5 font-semibold ${stockBar <= (limit/2) ? 'text-amber-600' : 'text-stone-900'}">${stockBar} ${item.unit || 'Pcs'}</td>
+                        <td class="py-3 px-5 font-semibold ${stockBackroom <= 0 ? 'text-rose-600' : 'text-stone-900'}">${stockBackroom} ${item.unit || 'Pcs'}</td>
+                        <td class="py-3 px-5">${batchHtml}</td>
+                        <td class="py-3 px-5">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <button type="button" onclick="openTrxModal('${item.id}', 'masuk')" class="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition cursor-pointer">+ Masuk</button>
+                                <button type="button" onclick="openTrxModal('${item.id}', 'keluar')" class="px-2 py-1 text-xs font-semibold bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 transition cursor-pointer">- Keluar</button>
+                                <button type="button" onclick="deleteInventoryItem('${item.id}', '${item.name}')" class="px-2 py-1 text-xs font-semibold bg-stone-100 text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer" title="Hapus Barang">🗑️</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+            lowStockEl.innerText = lowStockCount;
+            nearExpEl.innerText = nearExpCount;
+        }
+
+        async function deleteInventoryItem(id, itemName) {
+            if (confirm(`Yakin ingin menghapus jenis barang "${itemName}" dari sistem inventaris?`)) {
+                try {
+                    await window.deleteDoc(window.doc(window.db, "inventaris", id));
+                    alert(`Barang "${itemName}" berhasil dihapus.`);
+                } catch (err) {
+                    alert("Gagal menghapus barang: " + err.message);
+                }
+            }
+        }
+
+        async function handleTambahItem(e) {
+            e.preventDefault();
+            const name = document.getElementById('add-name').value;
+            const category = document.getElementById('add-category').value;
+            const unit = document.getElementById('add-unit').value;
+            const location = document.getElementById('add-location').value;
+
+            const batchRows = document.querySelectorAll('#modal-tambah-item .batch-row');
+            let batches = [];
+            let totalStock = 0;
+
+            batchRows.forEach(row => {
+                const qty = parseInt(row.querySelector('.batch-qty').value) || 0;
+                const expInput = row.querySelector('.batch-exp').value;
+                const exp = expInput ? expInput : 'Tanpa Expired';
+                if (qty > 0) {
+                    batches.push({ qty, exp });
+                    totalStock += qty;
+                }
+            });
+
+            if (batches.length === 0) {
+                alert("Harap masukkan setidaknya satu batch stok!");
+                return;
+            }
+
+            batches = sortBatchesFEFO(batches);
+
+            let stockBar = location === 'Bar' ? totalStock : 0;
+            let stockBackroom = location === 'Backroom' ? totalStock : 0;
+
+            try {
+                await window.addDoc(window.collection(window.db, "inventaris"), {
+                    name, category, unit, stock: totalStock, stockBar, stockBackroom, batches,
+                    createdAt: new Date().toISOString()
+                });
+                closeModal('modal-tambah-item');
+                document.getElementById('form-tambah-item').reset();
+                document.getElementById('batch-container').innerHTML = `
+                    <div class="batch-row grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                        <div class="sm:col-span-5">
+                            <label class="block text-[10px] text-stone-500">Jumlah Stok</label>
+                            <input type="number" class="batch-qty w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white" required min="1" value="1">
+                        </div>
+                        <div class="sm:col-span-6">
+                            <label class="block text-[10px] text-stone-500">Expired Date (Opsional)</label>
+                            <input type="date" class="batch-exp w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div class="sm:col-span-1 flex items-end justify-center"></div>
+                    </div>`;
+                alert("Jenis barang baru berhasil ditambahkan!");
+            } catch (err) {
+                alert("Gagal menambah barang: " + err.message);
+            }
+        }
+
+        function openTrxModal(id, type) {
+            const item = inventoryData.find(i => i.id === id);
+            if (!item) return;
+
+            loadEmployeeDropdown();
+            document.getElementById('trx-id').value = item.id;
+            document.getElementById('trx-type').value = type;
+            let sBar = item.stockBar !== undefined ? item.stockBar : 0;
+            let sBack = item.stockBackroom !== undefined ? item.stockBackroom : (item.stock || 0);
+            
+            document.getElementById('trx-item-name').innerText = `Barang: ${item.name} (Stok Bar: ${sBar} | Backroom: ${sBack} ${item.unit})`;
+            
+            document.querySelectorAll('.trx-unit-label').forEach(el => el.innerText = item.unit);
+            document.getElementById('trx-staff').value = "";
+            document.getElementById('trx-note').value = "";
+
+            const title = document.getElementById('trx-modal-title');
+            const btn = document.getElementById('trx-submit-btn');
+            const sectionMasuk = document.getElementById('section-trx-masuk');
+            const sectionKeluar = document.getElementById('section-trx-keluar');
+
+            if (type === 'masuk') {
+                title.innerText = "Catat Pemasokan Barang ke Lokasi";
+                sectionMasuk.classList.remove('hidden');
+                sectionKeluar.classList.add('hidden');
+                btn.className = "px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl transition cursor-pointer";
+                btn.innerText = "Simpan Stok Masuk";
+                
+                document.getElementById('trx-batch-container').innerHTML = `
+                    <div class="batch-row grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                        <div class="sm:col-span-5">
+                            <label class="block text-[10px] text-stone-500">Jumlah Masuk</label>
+                            <input type="number" class="batch-qty w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white" min="1" value="1">
+                        </div>
+                        <div class="sm:col-span-6">
+                            <label class="block text-[10px] text-stone-500">Expired Date</label>
+                            <input type="date" class="batch-exp w-full px-2.5 py-1.5 border border-stone-300 rounded-lg text-sm bg-white">
+                        </div>
+                        <div class="sm:col-span-1 flex items-end justify-center"></div>
+                    </div>`;
+            } else {
+                title.innerText = "Catat Pengeluaran Barang (FEFO Otomatis)";
+                sectionMasuk.classList.add('hidden');
+                sectionKeluar.classList.remove('hidden');
+                document.getElementById('trx-qty-keluar').value = 1;
+                btn.className = "px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm rounded-xl transition cursor-pointer";
+                btn.innerText = "Simpan Stok Keluar";
+            }
+            openModal('modal-transaksi');
+        }
+
+        async function handleSimpanTransaksi(e) {
+            e.preventDefault();
+            const id = document.getElementById('trx-id').value;
+            const type = document.getElementById('trx-type').value;
+            const location = document.getElementById('trx-location').value;
+            const staff = document.getElementById('trx-staff').value;
+            const note = document.getElementById('trx-note').value;
+
+            if (!staff) {
+                alert("Harap pilih nama staf yang bertugas!");
+                return;
+            }
+
+            const item = inventoryData.find(i => i.id === id);
+            if (!item) return;
+
+            let stockBar = item.stockBar !== undefined ? item.stockBar : 0;
+            let stockBackroom = item.stockBackroom !== undefined ? item.stockBackroom : (item.stock || 0);
+            let batches = item.batches || [{ qty: (stockBar + stockBackroom), exp: 'Tanpa Expired' }];
+            let logNote = note;
+
+            if (type === 'masuk') {
+                const batchRows = document.querySelectorAll('#trx-batch-container .batch-row');
+                let addedQty = 0;
+                let batchSummary = [];
+
+                batchRows.forEach(row => {
+                    const qty = parseInt(row.querySelector('.batch-qty').value) || 0;
+                    const expInput = row.querySelector('.batch-exp').value;
+                    const exp = expInput ? expInput : 'Tanpa Expired';
+                    if (qty > 0) {
+                        batches.push({ qty, exp });
+                        addedQty += qty;
+                        batchSummary.push(`[${qty} ${item.unit} Exp: ${exp}]`);
+                    }
+                });
+
+                if (addedQty === 0) {
+                    alert("Harap masukkan setidaknya satu batch jumlah masuk!");
+                    return;
+                }
+
+                if (location === 'Bar') stockBar += addedQty;
+                else stockBackroom += addedQty;
+
+                batches = sortBatchesFEFO(batches);
+                let totalStock = stockBar + stockBackroom;
+                logNote = `Masuk ke ${location}: ${batchSummary.join(', ')} ${note ? '- ' + note : ''}`;
+                
+                await window.addDoc(window.collection(window.db, "transaksi"), {
+                    itemId: id, itemName: item.name, type: `masuk (${location})`, qty: addedQty, unit: item.unit, staff, note: logNote,
+                    timestamp: new Date().toISOString()
+                });
+
+                await window.updateDoc(window.doc(window.db, "inventaris", id), { stock: totalStock, stockBar, stockBackroom, batches });
+
+            } else {
+                const qtyKeluar = parseInt(document.getElementById('trx-qty-keluar').value) || 0;
+                let currentLocStock = location === 'Bar' ? stockBar : stockBackroom;
+
+                if (qtyKeluar > currentLocStock) {
+                    alert(`Jumlah pengeluaran melebihi stok di ${location} saat ini (${currentLocStock} ${item.unit})!`);
+                    return;
+                }
+
+                if (location === 'Bar') stockBar -= qtyKeluar;
+                else stockBackroom -= qtyKeluar;
+
+                let remainingToSubtract = qtyKeluar;
+                let usedBatchesInfo = [];
+
+                batches = sortBatchesFEFO(batches);
+
+                for (let b of batches) {
+                    if (remainingToSubtract <= 0) break;
+                    let deducted = 0;
+                    if (b.qty >= remainingToSubtract) {
+                        deducted = remainingToSubtract;
+                        b.qty -= remainingToSubtract;
+                        remainingToSubtract = 0;
+                    } else {
+                        deducted = b.qty;
+                        remainingToSubtract -= b.qty;
+                        b.qty = 0;
+                    }
+                    usedBatchesInfo.push(`${deducted} ${item.unit} (Exp: ${b.exp})`);
+                }
+
+                batches = batches.filter(b => b.qty > 0);
+                if (batches.length === 0) {
+                    batches.push({ qty: 0, exp: 'Tanpa Expired' });
+                }
+
+                let totalStock = stockBar + stockBackroom;
+                logNote = `Keluar dari ${location} (FEFO): ${usedBatchesInfo.join(', ')} ${note ? '- ' + note : ''}`;
+
+                await window.addDoc(window.collection(window.db, "transaksi"), {
+                    itemId: id, itemName: item.name, type: `keluar (${location})`, qty: qtyKeluar, unit: item.unit, staff, note: logNote,
+                    timestamp: new Date().toISOString()
+                });
+
+                await window.updateDoc(window.doc(window.db, "inventaris", id), { stock: totalStock, stockBar, stockBackroom, batches });
+            }
+
+            closeModal('modal-transaksi');
+            alert(`Transaksi berhasil disimpan!`);
+        }
+
+        async function loadTrxHistory() {
+            const tbody = document.getElementById('trx-history-body');
+            tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-stone-400">Memuat riwayat transaksi...</td></tr>`;
+            try {
+                const snapshot = await window.getDocs(window.collection(window.db, "transaksi"));
+                if (snapshot.empty) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-stone-400">Belum ada catatan riwayat transaksi.</td></tr>`;
+                    return;
+                }
+
+                let trxList = [];
+                snapshot.forEach(docSnap => {
+                    trxList.push({ id: docSnap.id, ...docSnap.data() });
+                });
+
+                // URUTKAN TRANSAKSI BERDASARKAN WAKTU TERBARU KE TERLAMA (CHRONOLOGICAL SORT)
+                trxList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                tbody.innerHTML = "";
+                trxList.forEach(data => {
+                    const dateStr = data.timestamp ? new Date(data.timestamp).toLocaleString('id-ID') : '-';
+                    let typeBadge = `<span class="text-stone-700 bg-stone-100 px-2 py-0.5 rounded text-xs font-semibold">${data.type || 'Aktivitas'}</span>`;
+                    if((data.type || '').includes('masuk')) {
+                        typeBadge = `<span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs font-semibold">${data.type}</span>`;
+                    } else if((data.type || '').includes('keluar')) {
+                        typeBadge = `<span class="text-rose-700 bg-rose-50 px-2 py-0.5 rounded text-xs font-semibold">${data.type}</span>`;
+                    }
+                    
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 text-xs text-stone-500">${dateStr}</td>
+                        <td class="py-3 px-4 font-medium text-stone-900">${data.itemName || '-'}</td>
+                        <td class="py-3 px-4">${typeBadge}</td>
+                        <td class="py-3 px-4 font-semibold">${data.qty} ${data.unit || ''}</td>
+                        <td class="py-3 px-4 font-medium text-amber-900">${data.staff || '-'}</td>
+                        <td class="py-3 px-4 text-stone-600 text-xs">${data.note || '-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-rose-500">Gagal memuat riwayat: ${err.message}</td></tr>`;
+            }
+        }
+
+        function renderEstimation() {
+            const tbody = document.getElementById('estimation-table-body');
+            
+            const lowStockItems = inventoryData.filter(i => {
+                let totalStock = (i.stockBar || 0) + (i.stockBackroom !== undefined ? i.stockBackroom : (i.stock || 0));
+                const limit = getLowStockLimit(i.unit);
+                return totalStock <= limit;
+            });
+
+            if (lowStockItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-stone-400">Semua total stok aman sesuai batas. Tidak ada estimasi restock mendesak.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = "";
+            lowStockItems.forEach(item => {
+                let totalStock = (item.stockBar || 0) + (item.stockBackroom !== undefined ? item.stockBackroom : (item.stock || 0));
+                const recommendedOrder = getRecommendedOrder(item.unit, totalStock);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-3 px-6 font-medium text-stone-900">${item.name}</td>
+                    <td class="py-3 px-6 text-stone-500">${item.category || '-'}</td>
+                    <td class="py-3 px-6 font-semibold text-rose-600">${totalStock} ${item.unit}</td>
+                    <td class="py-3 px-6 font-bold text-amber-800">+${recommendedOrder} ${item.unit}</td>
+                    <td class="py-3 px-6"><span class="px-2.5 py-1 text-xs font-semibold bg-rose-100 text-rose-800 rounded-full">Sangat Urgen</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderOpname() {
+            const tbody = document.getElementById('opname-table-body');
+            if (inventoryData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-stone-400">Belum ada data barang untuk di-opname.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = "";
+            inventoryData.forEach((item, index) => {
+                let sBar = item.stockBar !== undefined ? item.stockBar : 0;
+                let sBack = item.stockBackroom !== undefined ? item.stockBackroom : (item.stock || 0);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-medium text-stone-900">${item.name}</td>
+                    <td class="py-3 px-4 font-semibold text-stone-700">Bar: ${sBar} | Gudang: ${sBack} ${item.unit}</td>
+                    <td class="py-3 px-4">
+                        <input type="number" id="physical-bar-${index}" value="${sBar}" min="0" class="w-20 px-2 py-1 border border-stone-300 rounded-lg text-sm focus:outline-none">
+                    </td>
+                    <td class="py-3 px-4">
+                        <input type="number" id="physical-back-${index}" value="${sBack}" min="0" class="w-20 px-2 py-1 border border-stone-300 rounded-lg text-sm focus:outline-none">
+                    </td>
+                    <td class="py-3 px-4">
+                        <button type="button" onclick="saveOpnameItem('${item.id}', ${index}, '${item.name}')" class="px-3 py-1 bg-amber-800 hover:bg-amber-900 text-white text-xs font-semibold rounded-lg transition cursor-pointer">Simpan Opname</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function saveOpnameItem(id, index, itemName) {
+            const physicalBar = parseInt(document.getElementById(`physical-bar-${index}`).value) || 0;
+            const physicalBack = parseInt(document.getElementById(`physical-back-${index}`).value) || 0;
+            const period = document.getElementById('opname-period').value;
+
+            if (confirm(`Simpan penyesuaian opname ${period} untuk ${itemName} (Bar: ${physicalBar}, Gudang: ${physicalBack})?`)) {
+                try {
+                    let item = inventoryData.find(i => i.id === id);
+                    let totalPhysical = physicalBar + physicalBack;
+                    let batches = item.batches || [{ qty: totalPhysical, exp: 'Tanpa Expired' }];
+                    if (batches.length > 0) {
+                        batches[0].qty = totalPhysical;
+                    } else {
+                        batches = [{ qty: totalPhysical, exp: 'Tanpa Expired' }];
+                    }
+
+                    await window.updateDoc(window.doc(window.db, "inventaris", id), { 
+                        stock: totalPhysical, stockBar: physicalBar, stockBackroom: physicalBack, batches 
+                    });
+                    
+                    await window.addDoc(window.collection(window.db, "transaksi"), {
+                        itemId: id, itemName: itemName, type: `opname (${period})`, qty: totalPhysical, unit: item.unit,
+                        staff: 'Supervisor / Opname', note: `Opname disesuaikan fisik (Bar: ${physicalBar}, Gudang: ${physicalBack})`,
+                        timestamp: new Date().toISOString()
+                    });
+                    alert("Stok berhasil disesuaikan dengan hasil opname fisik!");
+                } catch (err) {
+                    alert("Gagal opname: " + err.message);
+                }
+            }
+        }
+
+        async function loadEmployees() {
+            const tbody = document.getElementById('employee-table-body');
+            if(!tbody) return;
+            tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-stone-400">Memuat data karyawan...</td></tr>`;
+            try {
+                const snapshot = await window.getDocs(window.collection(window.db, "karyawan"));
+                employeeData = [];
+                snapshot.forEach(docSnap => {
+                    employeeData.push({ id: docSnap.id, ...docSnap.data() });
+                });
+
+                if (employeeData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-stone-400">Belum ada data karyawan terdaftar. Silakan tambahkan.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = "";
+                employeeData.forEach(emp => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="py-3 px-6 font-semibold text-amber-900">${emp.employeeId || '-'}</td>
+                        <td class="py-3 px-6 font-medium text-stone-900">${emp.name || '-'}</td>
+                        <td class="py-3 px-6 text-stone-600">${emp.role || '-'}</td>
+                        <td class="py-3 px-6">
+                            <button type="button" onclick="deleteEmployee('${emp.employeeId || emp.id}')" class="px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 transition cursor-pointer">Hapus</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                loadEmployeeDropdown();
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-rose-500">Gagal memuat karyawan: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function handleTambahKaryawan(e) {
+            e.preventDefault();
+            const employeeId = document.getElementById('emp-id').value.trim();
+            const name = document.getElementById('emp-name').value.trim();
+            const role = document.getElementById('emp-role').value.trim();
+
+            if (!employeeId || !name || !role) {
+                alert("Semua kolom formulir karyawan wajib diisi!");
+                return;
+            }
+
+            try {
+                await window.setDoc(window.doc(window.db, "karyawan", employeeId), {
+                    employeeId, name, role, createdAt: new Date().toISOString()
+                });
+                closeModal('modal-tambah-karyawan');
+                document.getElementById('form-tambah-karyawan').reset();
+                loadEmployees();
+                alert("Karyawan baru berhasil ditambahkan!");
+            } catch (err) {
+                alert("Gagal menambah karyawan: " + err.message);
+            }
+        }
+
+        async function deleteEmployee(id) {
+            if (confirm("Yakin ingin menghapus data karyawan ini?")) {
+                try {
+                    await window.deleteDoc(window.doc(window.db, "karyawan", id));
+                    loadEmployees();
+                } catch (err) {
+                    alert("Gagal menghapus: " + err.message);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
